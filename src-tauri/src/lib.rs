@@ -1,3 +1,6 @@
+mod navigation;
+
+use navigation::is_workspace_navigation;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -7,12 +10,14 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
+use tauri_plugin_opener::OpenerExt;
 use url::Url;
 
 const DEFAULT_PROFILE_ID: &str = "local";
 const DEFAULT_PROFILE_NAME: &str = "本地 Ourea";
 const DEFAULT_PROFILE_URL: &str = "http://127.0.0.1:8008";
 const LAUNCHER_WINDOW_LABEL: &str = "main";
+const WORKBENCH_WINDOW_LABEL: &str = "workbench";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -191,7 +196,7 @@ fn set_theme(
 }
 
 #[tauri::command]
-fn activate_profile(
+fn open_workbench(
     app: AppHandle,
     state: tauri::State<'_, DesktopState>,
     profile_id: String,
@@ -210,11 +215,72 @@ fn activate_profile(
     };
 
     let check = check_ourea_health(&profile.url);
-    if check.ok {
-        Ok(snapshot(&state))
-    } else {
-        Err(check.message)
+    if !check.ok {
+        return Err(check.message);
     }
+
+    let workspace_url = Url::parse(&profile.url).map_err(|error| error.to_string())?;
+    if let Some(existing) = app.get_webview_window(WORKBENCH_WINDOW_LABEL) {
+        let same_origin = existing
+            .url()
+            .map(|current| is_workspace_navigation(&workspace_url, &current))
+            .unwrap_or(false);
+
+        if same_origin {
+            existing
+                .navigate(workspace_url)
+                .map_err(|error| format!("无法切换工作台：{error}"))?;
+            existing.show().map_err(|error| error.to_string())?;
+            existing.set_focus().map_err(|error| error.to_string())?;
+            return Ok(snapshot(&state));
+        }
+
+        existing
+            .destroy()
+            .map_err(|error| format!("无法切换工作台窗口：{error}"))?;
+    }
+
+    let navigation_workspace = workspace_url.clone();
+    let navigation_app = app.clone();
+    let new_window_app = app.clone();
+    let workbench = WebviewWindowBuilder::new(
+        &app,
+        WORKBENCH_WINDOW_LABEL,
+        WebviewUrl::External(workspace_url),
+    )
+    .title(format!("{} · Ourea Desktop", profile.name))
+    .inner_size(1280.0, 800.0)
+    .min_inner_size(960.0, 640.0)
+    .center()
+    .resizable(true)
+    .decorations(true)
+    .enable_clipboard_access()
+    .disable_drag_drop_handler()
+    .initialization_script(desktop_bridge_script())
+    .on_navigation(move |target| {
+        if is_workspace_navigation(&navigation_workspace, target) {
+            return true;
+        }
+
+        let _ = navigation_app
+            .opener()
+            .open_url(target.as_str(), None::<&str>);
+        false
+    })
+    .on_new_window(move |target, _features| {
+        let _ = new_window_app
+            .opener()
+            .open_url(target.as_str(), None::<&str>);
+        tauri::webview::NewWindowResponse::Deny
+    })
+    .on_download(|_webview, _event| true)
+    .build()
+    .map_err(|error| format!("无法创建工作台窗口：{error}"))?;
+
+    attach_window_state_listener(app.clone(), workbench.clone());
+    workbench.set_focus().map_err(|error| error.to_string())?;
+
+    Ok(snapshot(&state))
 }
 
 #[tauri::command]
@@ -405,21 +471,21 @@ fn attach_window_state_listener(app: AppHandle, window: WebviewWindow) {
 fn desktop_bridge_script() -> &'static str {
     #[cfg(target_os = "macos")]
     {
-        return r#"Object.defineProperty(window, '__OUREA_DESKTOP__', { value: { kind: 'ourea-desktop', platform: 'macos', titleBar: 'custom', navbarDrag: false, trafficLights: false }, configurable: false, enumerable: false });"#;
+        return r#"Object.defineProperty(window, '__OUREA_DESKTOP__', { value: { kind: 'ourea-desktop', platform: 'macos', titleBar: 'native', navbarDrag: false, trafficLights: false }, configurable: false, enumerable: false });"#;
     }
 
     #[cfg(target_os = "windows")]
     {
-        return r#"Object.defineProperty(window, '__OUREA_DESKTOP__', { value: { kind: 'ourea-desktop', platform: 'windows', titleBar: 'custom', navbarDrag: false, trafficLights: false }, configurable: false, enumerable: false });"#;
+        return r#"Object.defineProperty(window, '__OUREA_DESKTOP__', { value: { kind: 'ourea-desktop', platform: 'windows', titleBar: 'native', navbarDrag: false, trafficLights: false }, configurable: false, enumerable: false });"#;
     }
 
     #[cfg(target_os = "linux")]
     {
-        return r#"Object.defineProperty(window, '__OUREA_DESKTOP__', { value: { kind: 'ourea-desktop', platform: 'linux', titleBar: 'custom', navbarDrag: false, trafficLights: false }, configurable: false, enumerable: false });"#;
+        return r#"Object.defineProperty(window, '__OUREA_DESKTOP__', { value: { kind: 'ourea-desktop', platform: 'linux', titleBar: 'native', navbarDrag: false, trafficLights: false }, configurable: false, enumerable: false });"#;
     }
 
     #[allow(unreachable_code)]
-    r#"Object.defineProperty(window, '__OUREA_DESKTOP__', { value: { kind: 'ourea-desktop', platform: 'unknown', titleBar: 'custom', navbarDrag: false, trafficLights: false }, configurable: false, enumerable: false });"#
+    r#"Object.defineProperty(window, '__OUREA_DESKTOP__', { value: { kind: 'ourea-desktop', platform: 'unknown', titleBar: 'native', navbarDrag: false, trafficLights: false }, configurable: false, enumerable: false });"#
 }
 
 fn persist_window_state(app: &AppHandle, window: &WebviewWindow) {
@@ -528,7 +594,11 @@ fn save_config(app: &AppHandle, config: &DesktopConfig) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
+        .plugin(
+            tauri_plugin_opener::Builder::new()
+                .open_js_links_on_click(false)
+                .build(),
+        )
         .setup(|app| {
             let config = load_config(app.handle());
             app.manage(DesktopState {
@@ -546,7 +616,6 @@ pub fn run() {
             .center()
             .resizable(true)
             .decorations(false)
-            .initialization_script_for_all_frames(desktop_bridge_script())
             .build()?;
             attach_window_state_listener(app.handle().clone(), launcher);
 
@@ -559,7 +628,7 @@ pub fn run() {
             test_profile,
             test_ourea_url,
             set_theme,
-            activate_profile,
+            open_workbench,
             window_action
         ])
         .run(tauri::generate_context!())

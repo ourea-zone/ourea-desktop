@@ -24,7 +24,7 @@ type ThemeMode = "system" | "light" | "dark";
 type AppSnapshot = { profiles: OureaProfile[]; activeProfileId: string | null; themeMode: ThemeMode };
 type ConnectionCheck = { ok: boolean; message: string; healthUrl: string };
 type ProfileForm = { id: string; name: string; url: string };
-type View = "settings" | "workbench" | "fallback";
+type View = "settings" | "fallback";
 type Status = "idle" | "loading" | "saving" | "testing" | "connecting";
 
 const DEFAULT_URL = "http://127.0.0.1:8008";
@@ -55,7 +55,7 @@ function WindowControls({ onNavigate, showSettings, isTauri }: { onNavigate: () 
 }
 
 function TitleBar({ view, isTauri, onNavigate }: { view: View; isTauri: boolean; onNavigate: () => void }) {
-  const isWorkbench = view === "workbench" || view === "fallback";
+  const isWorkbench = view === "fallback";
 
   async function handleMouseDown(event: React.MouseEvent<HTMLDivElement>) {
     if (!isTauri || event.button !== 0) return;
@@ -105,7 +105,6 @@ function App() {
   const [connectionResult, setConnectionResult] = useState<ConnectionCheck | null>(null);
   const [fallbackReason, setFallbackReason] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [workbenchLoaded, setWorkbenchLoaded] = useState(false);
 
   const activeProfile = snapshot.profiles.find((profile) => profile.id === snapshot.activeProfileId) ?? null;
 
@@ -140,10 +139,10 @@ function App() {
   }
 
   async function openProfile(profileId: string) {
-    setBusyId(profileId); setStatus("connecting"); setMessage(""); setConnectionResult(null); setWorkbenchLoaded(false);
+    setBusyId(profileId); setStatus("connecting"); setMessage(""); setConnectionResult(null);
     try {
       if (!isTauri) { const profile = snapshot.profiles.find((item) => item.id === profileId); if (profile) window.open(profile.url, "_blank", "noopener,noreferrer"); return; }
-      const next = await invoke<AppSnapshot>("activate_profile", { profileId }); setSnapshot(next); setView("workbench");
+      const next = await invoke<AppSnapshot>("open_workbench", { profileId }); setSnapshot(next); setView("settings"); setMessage("工作台已在独立窗口中打开");
     } catch (error) { setFallbackReason(String(error)); setView("fallback"); }
     finally { setBusyId(null); setStatus("idle"); }
   }
@@ -169,13 +168,11 @@ function App() {
 
   function editProfile(profile: OureaProfile) { setForm({ ...profile }); setConnectionResult(null); setMessage(`正在编辑：${profile.name}`); setView("settings"); }
   async function openDocs() { const url = "https://github.com/ourea-zone/ourea-desktop"; if (isTauri) await openUrl(url); else window.open(url, "_blank", "noopener,noreferrer"); }
-  const navigate = () => setView((current) => current === "settings" ? "workbench" : "settings");
+  const navigate = () => {
+    if (view === "fallback") setView("settings");
+    else if (activeProfile) void openProfile(activeProfile.id);
+  };
   const titlebar = <TitleBar view={view} isTauri={isTauri} onNavigate={navigate} />;
-
-  if (view === "workbench" && activeProfile) return <main className="app-frame">{titlebar}<section className={`workbench-viewport ${workbenchLoaded ? "loaded" : "loading"}`}>
-    <iframe className="workbench-embed" src={activeProfile.url} title="Ourea 工作台" allow="clipboard-read; clipboard-write; fullscreen" onLoad={() => setWorkbenchLoaded(true)} />
-    <div className="workbench-loading" aria-live="polite"><div className="loading-mark"><img src="/ourea-logo.svg" alt="" /><LoaderCircle size={18} className="loading-spinner" /></div><strong>正在打开 Ourea 工作台</strong><span>{activeProfile.name} · 正在建立连接</span></div>
-  </section></main>;
 
   if (view === "fallback") return <main className="app-frame">{titlebar}<div className="shell fallback-shell"><section className="fallback-panel"><div className="fallback-icon"><Wifi size={22} /></div><p className="eyebrow">WORKBENCH UNAVAILABLE</p><h1>暂时无法打开工作台</h1><p className="description">{activeProfile ? `${activeProfile.name} · ${activeProfile.url}` : "没有可用的 Ourea 配置。"}</p><div className="message error">{fallbackReason}</div><div className="action-row"><button type="button" onClick={() => activeProfile && void openProfile(activeProfile.id)}><RefreshCw size={15} />重试连接</button><button type="button" className="secondary" onClick={() => setView("settings")}><Settings2 size={15} />打开设置</button></div></section></div></main>;
 

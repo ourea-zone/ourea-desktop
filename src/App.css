@@ -60,8 +60,8 @@ h3 { font-size: 14px; line-height: 1.25; }
 .description { max-width: 64ch; margin-top: 13px; color: var(--muted); font-size: 12px; line-height: 1.7; }
 .intro-mark { width: 124px; height: 124px; flex: 0 0 auto; display: grid; place-items: center; gap: 5px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); text-align: center; font-size: 10px; line-height: 1.35; }
 .intro-mark img { width: 61px; height: 61px; object-fit: contain; }
-:root[data-theme="cyber"] .titlebar-brand img, :root[data-theme="cyber"] .intro-mark img, :root[data-theme="cyber"] .loading-mark img { filter: invert(1); }
-@media (prefers-color-scheme: dark) { :root[data-theme="system"] .titlebar-brand img, :root[data-theme="system"] .intro-mark img, :root[data-theme="system"] .loading-mark img { filter: invert(1); } }
+:root[data-theme="cyber"] .titlebar-brand img, :root[data-theme="cyber"] .intro-mark img { filter: invert(1); }
+@media (prefers-color-scheme: dark) { :root[data-theme="system"] .titlebar-brand img, :root[data-theme="system"] .intro-mark img { filter: invert(1); } }
 .overview-strip { min-height: 50px; display: flex; align-items: center; gap: 26px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; }
 .overview-strip > div { display: inline-flex; align-items: center; gap: 8px; }
 .overview-strip svg { color: var(--accent); }
@@ -111,16 +111,6 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-so
 .theme-option { min-width: 92px; height: 31px; padding: 0 10px; border: 0; border-radius: 3px; background: transparent; color: var(--muted); font-size: 10px; }
 .theme-option:hover:not(:disabled) { background: var(--accent-soft); border: 0; color: var(--accent); }
 .theme-option.active { background: var(--text); color: var(--bg); }
-.workbench-viewport { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--bg); }
-.workbench-embed { display: block; width: 100%; height: 100%; border: 0; background: var(--bg); opacity: 0; transition: opacity .24s ease; }
-.workbench-viewport.loaded .workbench-embed { opacity: 1; }
-.workbench-loading { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; background: var(--bg); color: var(--text); transition: opacity .2s ease, visibility .2s ease; }
-.workbench-viewport.loaded .workbench-loading { opacity: 0; visibility: hidden; pointer-events: none; }
-.loading-mark { position: relative; width: 64px; height: 64px; display: grid; place-items: center; border: 1px solid var(--line); background: var(--surface); }
-.loading-mark img { width: 34px; height: 34px; object-fit: contain; }
-.loading-spinner { position: absolute; right: -8px; bottom: -8px; padding: 4px; width: 25px; height: 25px; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--accent); animation: spin 1s linear infinite; }
-.workbench-loading strong { font-size: 12px; font-weight: 600; }
-.workbench-loading span { color: var(--muted); font-size: 10px; }
 .fallback-shell { display: grid; place-items: center; padding: 32px; }
 .fallback-panel { width: min(540px, 100%); padding: 30px; border: 1px solid var(--line); background: var(--surface); }
 .fallback-icon { width: 42px; height: 42px; display: grid; place-items: center; margin-bottom: 24px; border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--line)); color: var(--danger); }

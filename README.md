@@ -7,8 +7,8 @@ The desktop shell focuses on a few core desktop workflows:
 - save multiple Ourea Web addresses and switch between them quickly;
 - validate a target before opening it;
 - keep a local fallback page when the workspace is unreachable;
-- keep settings and the Ourea workspace in one window instead of splitting them across macOS windows;
-- send external links to the system browser;
+- open Ourea in a dedicated native WebView so downloads and HTML5 file drop keep their browser behavior;
+- keep same-origin workspace navigation in Desktop and send external links or new-window requests to the system browser;
 - remember the desktop window size and position across launches;
 - build native desktop packages with Tauri for macOS, Windows, and Linux.
 
